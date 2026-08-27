@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5f6f3" />
+    <title>Drawing Overlay Comparison</title>
+    <meta name="description" content="Pair original and updated drawing sheets by native PDF page label." />
+    <link rel="stylesheet" href="./styles.css?v=2026082711" />
+    <link rel="stylesheet" href="./overlay.css?v=2026082711" />
+    <link rel="stylesheet" href="./vector.css?v=2026082711" />
+    <link rel="stylesheet" href="./progress.css?v=2026082711" />
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script defer src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script defer src="./app.js?v=2026082711"></script>
+  </head>
+  <body class="overlay-mode">
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark">DO</span><span>Drawing Overlay Comparison</span><span class="local">LOCAL</span></div>
+        <div class="privacy"><span aria-hidden="true">&#128274;</span> Files stay on this device</div>
+      </header>
+
+      <section class="hero">
+        <div>
+          <p class="eyebrow">DRAWING REVIEW SET BUILDER</p>
+          <h1>Drawing Overlay Comparison</h1>
+          <p class="lede">Match selected drawing sheets by native PDF page label, retain inserted sheets, and preserve bookmarks in one review-ready PDF.</p>
+        </div>
+      </section>
+
+      <section class="mode-bar" aria-label="Output mode">
+        <div class="mode-copy"><p class="eyebrow">OUTPUT MODE</p><strong id="mode-title">Vector two-color overlay PDF</strong><span id="mode-description">Original linework in pure green, updated linework in pure magenta, and perfect overlap shown black.</span></div>
+        <div class="mode-switch" role="group" aria-label="Choose PDF output mode">
+          <button class="mode" type="button" data-mode="pairs"><span class="mode-icon">1|2</span><span><strong>Paired pages</strong><small>Old page, then new page</small></span></button>
+          <button class="mode active" type="button" data-mode="overlay"><span class="mode-icon overlay-icon">&#9681;</span><span><strong>Vector overlay</strong><small>Original green · updated magenta</small></span></button>
+        </div>
+      </section>
+
+      <section class="upload-grid" aria-label="PDF uploads">
+        <article class="upload-card" id="original-card" data-kind="original">
+          <div class="card-top"><span class="card-icon original-icon">01</span><span class="card-label">ORIGINAL SET</span></div>
+          <h2>Complete original drawing set</h2>
+          <p>Used to retrieve the matching old version of each selected sheet.</p>
+          <button class="dropzone" type="button"><strong>Drop original PDF here</strong><span>or choose a file</span></button>
+          <input class="file-input" type="file" accept="application/pdf,.pdf" aria-label="Upload the complete original drawing set" />
+          <div class="file-meta empty">Awaiting original PDF</div>
+          <div class="card-progress hidden"><div><span class="progress-title">Reading page labels</span><span class="progress-count">0%</span></div><i><b></b></i></div>
+        </article>
+
+        <article class="upload-card" id="updated-card" data-kind="updated">
+          <div class="card-top"><span class="card-icon updated-icon">02</span><span class="card-label">SELECTED SHEETS</span></div>
+          <h2>Updated selected sheets</h2>
+          <p>The output order follows this PDF. New inserted sheets remain in place.</p>
+          <button class="dropzone" type="button"><strong>Drop updated PDF here</strong><span>or choose a file</span></button>
+          <input class="file-input" type="file" accept="application/pdf,.pdf" aria-label="Upload the updated selected drawing sheets" />
+          <div class="file-meta empty">Awaiting updated PDF</div>
+          <div class="card-progress hidden"><div><span class="progress-title">Reading page labels</span><span class="progress-count">0%</span></div><i><b></b></i></div>
+        </article>
+      </section>
+
+      <section class="review hidden" id="review-section">
+        <div class="review-head">
+          <div><p class="eyebrow">OUTPUT REVIEW</p><h2>Paired sheet sequence</h2><p id="review-copy">The sequence below is exactly how the PDF will be assembled.</p></div>
+          <div class="summary" id="summary"></div>
+        </div>
+
+        <div class="review-panel">
+          <div class="list-head"><span>Output pages</span><span>Page label</span><span>Source pages</span><span>Result</span></div>
+          <div class="sheet-list" id="sheet-list"></div>
+        </div>
+
+        <div class="overlay-settings" id="overlay-settings">
+          <div class="vector-legend"><span><i class="legend-swatch old-vector"></i><strong>Green</strong> original</span><span><i class="legend-swatch new-vector"></i><strong>Magenta</strong> updated</span><span><i class="legend-swatch overlap-vector"></i><strong>Black</strong> overlap</span></div>
+          <span class="vector-note">Vector lines stay sharp at any zoom. Inserted sheets display in magenta.</span>
+        </div>
+
+        <div class="warnings hidden" id="warnings" role="status"></div>
+
+        <section class="export-card">
+          <div class="export-copy">
+            <p class="eyebrow">EXPORT</p>
+            <h2 id="export-title">Ready to build</h2>
+            <p id="export-status">No rasterization: source PDF vectors remain sharp. Pure green and pure magenta combine to black where they align.</p>
+          </div>
+          <button class="primary" id="generate" type="button">Generate vector overlay</button>
+          <div class="progress-track hidden" id="export-progress"><span></span></div>
+          <div class="phase-progress hidden" id="phase-progress">
+              <div class="phase-row" data-phase="sources"><span>1</span><div><strong>Read source PDFs</strong><i><b></b></i></div><em>Waiting</em></div>
+              <div class="phase-row" data-phase="masks"><span>2</span><div><strong>Build difference masks</strong><i><b></b></i></div><em>Waiting</em></div>
+              <div class="phase-row" data-phase="pages"><span>3</span><div><strong>Assemble overlay pages</strong><i><b></b></i></div><em>Waiting</em></div>
+              <div class="phase-row" data-phase="write"><span>4</span><div><strong>Write download PDF</strong><i><b></b></i></div><em>Waiting</em></div>
+              <div class="batch-progress" id="batch-progress"><div><strong class="batch-title">Current 10-sheet batch</strong><span class="batch-count">0 / 10</span></div><i><b></b></i><div class="batch-steps"><span class="batch-step">1</span><span class="batch-step">2</span><span class="batch-step">3</span><span class="batch-step">4</span><span class="batch-step">5</span><span class="batch-step">6</span><span class="batch-step">7</span><span class="batch-step">8</span><span class="batch-step">9</span><span class="batch-step">10</span></div></div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer>Drawing Overlay Comparison <strong>v2026.08.27.11</strong></footer>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

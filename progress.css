@@ -1,0 +1,135 @@
+.export-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px 28px;
+}
+
+.export-copy {
+  min-width: 0;
+}
+
+.export-card > .progress-track,
+.export-card > .phase-progress {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: none;
+  margin-top: 0;
+}
+
+/* Keep every primary section on the same page grid. */
+.hero {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.mode-bar,
+.upload-grid,
+.review {
+  width: 100%;
+  max-width: none;
+}
+
+/* Larger, more legible processing status. */
+#export-status {
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.phase-progress {
+  padding: 18px;
+}
+
+.phase-row {
+  grid-template-columns: 28px minmax(220px, 1fr) 190px;
+  gap: 13px;
+  margin: 10px 0;
+}
+
+.phase-row > span {
+  width: 24px;
+  height: 24px;
+  font-size: 11px;
+}
+
+.phase-row > div {
+  grid-template-columns: 205px 1fr;
+  gap: 13px;
+}
+
+.phase-row strong {
+  font-size: 13px;
+}
+
+.phase-row em {
+  font-size: 11px;
+}
+
+.batch-progress > div:first-child {
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.batch-progress > i {
+  display: none;
+}
+
+.batch-steps {
+  margin-top: 0;
+}
+
+.batch-step {
+  --step-progress: 0%;
+  position: relative;
+  isolation: isolate;
+  height: 28px;
+  overflow: hidden;
+  border: 1px solid #50544e;
+  background: #30332f;
+  color: #b8bdb5;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.batch-step::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: -1;
+  width: var(--step-progress);
+  background: #75d498;
+  transition: width .14s linear;
+}
+
+.batch-step.active {
+  color: #fff;
+}
+
+.batch-step.complete {
+  background: #30332f;
+  color: #17251b;
+}
+
+@media (max-width: 680px) {
+  .hero {
+    padding-left: 2%;
+    padding-right: 2%;
+  }
+
+  .export-card {
+    display: block;
+  }
+
+  .export-card > .progress-track,
+  .export-card > .phase-progress {
+    margin-top: 17px;
+  }
+
+  .phase-row {
+    grid-template-columns: 24px 1fr;
+  }
+
+  .phase-row > div {
+    grid-template-columns: 1fr;
+  }
+}
