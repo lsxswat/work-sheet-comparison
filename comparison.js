@@ -1,15 +1,19 @@
+/* Sheet Comparison module. Namespaced under #comparison-view so it can
+   share a page with the Slip Sheet workflows. */
+(function(){
 /* Drawing Overlay Comparison. PDF bytes are processed entirely in the browser. */
 const state={original:null,updated:null,plan:[],mode:'overlay'};
-const $=selector=>document.querySelector(selector);
+const root=document.getElementById('comparison-view');
+const $=selector=>root.querySelector(selector);
 const escapeHtml=value=>String(value).replace(/[&<>\"]/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;"}[char]));
 const displayLabel=value=>String(value??'').trim();
 const matchKey=value=>displayLabel(value).split(/\s+/,1)[0].replace(/\s+/g,'').toUpperCase();
 
-function toast(message){const element=$('#toast');element.textContent=message;element.classList.add('visible');clearTimeout(toast.timer);toast.timer=setTimeout(()=>element.classList.remove('visible'),3000)}
+function toast(message){const element=document.getElementById('toast');element.textContent=message;element.classList.add('visible');clearTimeout(toast.timer);toast.timer=setTimeout(()=>element.classList.remove('visible'),3000)}
 function countOutline(items){return (items||[]).reduce((count,item)=>count+1+countOutline(item.items),0)}
 function formatSize(bytes){return bytes>=1048576?`${Math.round(bytes/1048576)} MB`:`${Math.max(1,Math.round(bytes/1024))} KB`}
 function isPdf(file){return file&&(file.type==='application/pdf'||/\.pdf$/i.test(file.name))}
-function setCardProgress(kind,title,percent){const card=$(`#${kind}-card`),progress=card.querySelector('.card-progress');progress.classList.remove('hidden');progress.querySelector('.progress-title').textContent=title;progress.querySelector('.progress-count').textContent=`${Math.round(percent)}%`;progress.querySelector('b').style.width=`${percent}%`}
+function setCardProgress(kind,title,percent){const card=$(`#cmp-${kind}-card`),progress=card.querySelector('.card-progress');progress.classList.remove('hidden');progress.querySelector('.progress-title').textContent=title;progress.querySelector('.progress-count').textContent=`${Math.round(percent)}%`;progress.querySelector('b').style.width=`${percent}%`}
 function openLocalPdf(objectUrl){return pdfjsLib.getDocument({url:objectUrl,disableRange:true,disableStream:true,disableAutoFetch:true})}
 
 async function parsePdf(file,kind){
@@ -37,9 +41,9 @@ async function loadPdfLibDocument(record){const bytes=await record.file.arrayBuf
 async function upload(file,kind){
   if(!file)return;
   if(!isPdf(file)){toast('Please choose a PDF file.');return}
-  const card=$(`#${kind}-card`);
+  const card=$(`#cmp-${kind}-card`);
   try{
-    const previous=state[kind];state[kind]=null;state.plan=[];$('#review-section').classList.add('hidden');card.classList.remove('loaded');await disposePdfRecord(previous);
+    const previous=state[kind];state[kind]=null;state.plan=[];$('#cmp-review-section').classList.add('hidden');card.classList.remove('loaded');await disposePdfRecord(previous);
     const parsed=await parsePdf(file,kind);state[kind]=parsed;card.classList.add('loaded');
     const meta=card.querySelector('.file-meta');meta.classList.remove('empty');meta.innerHTML=`<strong>${escapeHtml(file.name)}</strong><br>${parsed.entries.length} pages · ${parsed.bookmarkCount} bookmarks · ${formatSize(file.size)}`;
     card.querySelector('.dropzone strong').textContent='Choose a replacement PDF';card.querySelector('.dropzone span').textContent='or drop another file here';
@@ -71,25 +75,25 @@ function renderReview(){
     return `<div class="sheet-row"><span class="output-pages">${output}</span><span class="sheet-label">${escapeHtml(item.label)}</span><span class="source-pages">${source}</span><span class="result ${item.type}">${result}</span></div>`;
   }).join('');
   const paired=state.plan.filter(item=>item.type==='paired').length,inserted=state.plan.length-paired;
-  $('#sheet-list').innerHTML=rows||'<div class="sheet-row">The updated PDF contains no pages.</div>';
-  $('#summary').innerHTML=`<span class="paired">${paired} paired</span><span class="inserted">${inserted} inserted</span>`;
-  $('#review-copy').textContent=`${outputPage-1} ${state.mode==='overlay'?'overlay':'output'} pages, following the updated PDF's sheet order.`;
+  $('#cmp-sheet-list').innerHTML=rows||'<div class="sheet-row">The updated PDF contains no pages.</div>';
+  $('#cmp-summary').innerHTML=`<span class="paired">${paired} paired</span><span class="inserted">${inserted} inserted</span>`;
+  $('#cmp-review-copy').textContent=`${outputPage-1} ${state.mode==='overlay'?'overlay':'output'} pages, following the updated PDF's sheet order.`;
   const warningParts=[],originalDuplicates=duplicateKeys(state.original.entries),updatedDuplicates=duplicateKeys(state.updated.entries);
   if(originalDuplicates.length)warningParts.push(`Duplicate original labels were matched in page order: ${originalDuplicates.join(', ')}.`);
   if(updatedDuplicates.length)warningParts.push(`Duplicate updated labels were processed in page order: ${updatedDuplicates.join(', ')}.`);
-  const warnings=$('#warnings');warnings.classList.toggle('hidden',!warningParts.length);warnings.textContent=warningParts.join(' ');
-  $('#review-section').classList.remove('hidden');$('#review-section').scrollIntoView({behavior:'smooth',block:'start'});
+  const warnings=$('#cmp-warnings');warnings.classList.toggle('hidden',!warningParts.length);warnings.textContent=warningParts.join(' ');
+  $('#cmp-review-section').classList.remove('hidden');$('#cmp-review-section').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function setMode(mode){
-  state.mode=mode;document.body.classList.toggle('overlay-mode',mode==='overlay');
-  document.querySelectorAll('.mode').forEach(button=>button.classList.toggle('active',button.dataset.mode===mode));
-  const overlay=mode==='overlay';$('#overlay-settings').classList.toggle('hidden',!overlay);$('.sequence-example')?.classList.toggle('overlay-preview',overlay);
-  $('#mode-title').textContent=overlay?'Vector two-color overlay PDF':'Original + Updated pairs';
-  $('#mode-description').textContent=overlay?'Original linework in pure green, updated linework in pure magenta, and perfect overlap shown black.':'Two pages per matched sheet for direct page-turn comparison.';
-  $('#generate').textContent=overlay?'Generate vector overlay':'Generate paired PDF';$('#export-title').textContent='Ready to build';
-  $('#export-status').textContent=overlay?'No rasterization: source PDF vectors remain sharp. Pure green and pure magenta combine to black where they align.':'Both versions receive the same page label. Source bookmarks are retained in separate Original and Updated bookmark groups.';
-  $('#export-progress').classList.add('hidden');$('#phase-progress').classList.add('hidden');if(state.plan.length)renderReview();
+  state.mode=mode;root.classList.toggle('overlay-mode',mode==='overlay');
+  root.querySelectorAll('.cmp-mode').forEach(button=>button.classList.toggle('active',button.dataset.mode===mode));
+  const overlay=mode==='overlay';$('#cmp-overlay-settings').classList.toggle('hidden',!overlay);$('.sequence-example')?.classList.toggle('overlay-preview',overlay);
+  $('#cmp-mode-title').textContent=overlay?'Vector two-color overlay PDF':'Original + Updated pairs';
+  $('#cmp-mode-description').textContent=overlay?'Original linework in pure green, updated linework in pure magenta, and perfect overlap shown black.':'Two pages per matched sheet for direct page-turn comparison.';
+  $('#cmp-generate').textContent=overlay?'Generate vector overlay':'Generate paired PDF';$('#cmp-export-title').textContent='Ready to build';
+  $('#cmp-export-status').textContent=overlay?'No rasterization: source PDF vectors remain sharp. Pure green and pure magenta combine to black where they align.':'Both versions receive the same page label. Source bookmarks are retained in separate Original and Updated bookmark groups.';
+  $('#cmp-export-progress').classList.add('hidden');$('#cmp-phase-progress').classList.add('hidden');if(state.plan.length)renderReview();
 }
 
 function labelIndex(record){const map=new Map;for(const entry of record.entries)if(!map.has(entry.key))map.set(entry.key,entry.index);return map}
@@ -123,10 +127,10 @@ function rebuildBookmarks(pdf,nodes){
 
 function download(name,bytes){const blob=bytes instanceof Blob?bytes:new Blob([bytes],{type:'application/pdf'}),url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download=name;document.body.append(anchor);anchor.click();anchor.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)}
 function outputName(mode=state.mode){const base=state.updated.file.name.replace(/\.pdf$/i,'');return `${base}_${mode==='overlay'?'Vector-Overlay':'Original-New-Pairs'}.pdf`}
-function setExportProgress(percent,message){$('#export-progress').classList.remove('hidden');$('#export-progress span').style.width=`${percent}%`;$('#export-status').textContent=message}
-function resetDetailedProgress(){const panel=$('#phase-progress');panel.classList.remove('hidden');panel.querySelectorAll('.phase-row').forEach(row=>{row.classList.remove('active','done');row.querySelector('b').style.width='0%';row.querySelector('em').textContent='Waiting'});setBatchProgress(0,Math.min(10,state.plan.length),1,Math.max(1,Math.ceil(state.plan.length/10)),0)}
+function setExportProgress(percent,message){$('#cmp-export-progress').classList.remove('hidden');$('#cmp-export-progress span').style.width=`${percent}%`;$('#cmp-export-status').textContent=message}
+function resetDetailedProgress(){const panel=$('#cmp-phase-progress');panel.classList.remove('hidden');panel.querySelectorAll('.phase-row').forEach(row=>{row.classList.remove('active','done');row.querySelector('b').style.width='0%';row.querySelector('em').textContent='Waiting'});setBatchProgress(0,Math.min(10,state.plan.length),1,Math.max(1,Math.ceil(state.plan.length/10)),0)}
 function setPhaseProgress(id,percent,status){const row=$(`[data-phase="${id}"]`);if(!row)return;row.classList.toggle('done',percent>=100);row.classList.toggle('active',percent<100&&percent>0);row.querySelector('b').style.width=`${Math.max(0,Math.min(100,percent))}%`;row.querySelector('em').textContent=status}
-function setBatchProgress(done,total,batchNumber,totalBatches,activePercent=0){const panel=$('#batch-progress');panel.querySelector('.batch-title').textContent=`Current 10-sheet batch ${batchNumber} of ${totalBatches}`;panel.querySelector('.batch-count').textContent=`${done} / ${total}`;panel.querySelector('b').style.width=`${total?done/total*100:0}%`;panel.querySelectorAll('.batch-step').forEach((step,index)=>{const progress=index<done?100:index===done&&index<total?activePercent:0;step.style.setProperty('--step-progress',`${Math.max(0,Math.min(100,progress))}%`);step.classList.toggle('complete',progress>=100);step.classList.toggle('active',progress>0&&progress<100);step.classList.toggle('unused',index>=total)})}
+function setBatchProgress(done,total,batchNumber,totalBatches,activePercent=0){const panel=$('#cmp-batch-progress');panel.querySelector('.batch-title').textContent=`Current 10-sheet batch ${batchNumber} of ${totalBatches}`;panel.querySelector('.batch-count').textContent=`${done} / ${total}`;panel.querySelector('b').style.width=`${total?done/total*100:0}%`;panel.querySelectorAll('.batch-step').forEach((step,index)=>{const progress=index<done?100:index===done&&index<total?activePercent:0;step.style.setProperty('--step-progress',`${Math.max(0,Math.min(100,progress))}%`);step.classList.toggle('complete',progress>=100);step.classList.toggle('active',progress>0&&progress<100);step.classList.toggle('unused',index>=total)})}
 function beginSmoothBatchStep(done,total,batchNumber,totalBatches){const started=performance.now();setBatchProgress(done,total,batchNumber,totalBatches,0);const timer=setInterval(()=>{const value=Math.min(80,(performance.now()-started)/5000*80);setBatchProgress(done,total,batchNumber,totalBatches,value);if(value>=80)clearInterval(timer)},50);return {advance(){},finish(){clearInterval(timer);setBatchProgress(done+1,total,batchNumber,totalBatches,0)}}}
 const pdfByteEncoder=new TextEncoder();
 function pdfBytes(value){return pdfByteEncoder.encode(value)}
@@ -141,7 +145,7 @@ async function writePdfAsBlob(pdf){
 
 async function generatePaired(){
   if(!state.original||!state.updated||!window.PDFLib){toast('Upload both PDFs before generating.');return}
-  const button=$('#generate');button.disabled=true;button.textContent='Building paired PDF…';$('#export-title').textContent='Building locally';
+  const button=$('#cmp-generate');button.disabled=true;button.textContent='Building paired PDF…';$('#cmp-export-title').textContent='Building locally';
   try{
     await Promise.all([ensurePdfJsDocument(state.original),ensurePdfJsDocument(state.updated)]);
     const [originalOutline,updatedOutline]=await Promise.all([resolveOutline(state.original.outline,state.original),resolveOutline(state.updated.outline,state.updated)]);await releasePdfJsDocuments();
@@ -163,8 +167,8 @@ async function generatePaired(){
     rebuildBookmarks(output,[{title:'Original set bookmarks',outputIndex:null,items:oldBookmarks},{title:'Updated selected sheets bookmarks',outputIndex:null,items:newBookmarks}]);
     output.setProducer('Drawing Overlay Comparison');output.setCreator('Drawing Overlay Comparison');output.setTitle(`${state.updated.file.name.replace(/\.pdf$/i,'')} - Original and Updated Pairs`);output.setModificationDate(new Date());
     setExportProgress(82,'Writing the paired drawing PDF…');const bytes=await output.save({useObjectStreams:true,addDefaultPage:false,objectsPerTick:50});
-    setExportProgress(100,`Created ${output.getPageCount()} pages with paired labels and preserved bookmarks.`);download(outputName('pairs'),bytes);$('#export-title').textContent='Paired PDF created';button.textContent='Generate Again';toast('Paired drawing PDF downloaded.');
-  }catch(error){console.error(error);$('#export-title').textContent='Could not create PDF';$('#export-status').textContent=`Could not create the paired PDF: ${String(error.message||'unknown error').slice(0,180)}`;toast('PDF creation failed. See the message above.')}
+    setExportProgress(100,`Created ${output.getPageCount()} pages with paired labels and preserved bookmarks.`);download(outputName('pairs'),bytes);$('#cmp-export-title').textContent='Paired PDF created';button.textContent='Generate Again';toast('Paired drawing PDF downloaded.');
+  }catch(error){console.error(error);$('#cmp-export-title').textContent='Could not create PDF';$('#cmp-export-status').textContent=`Could not create the paired PDF: ${String(error.message||'unknown error').slice(0,180)}`;toast('PDF creation failed. See the message above.')}
   finally{button.disabled=false;if(button.textContent==='Building paired PDF…')button.textContent='Generate paired PDF'}
 }
 
@@ -221,7 +225,7 @@ function paintVectorInk(page,mask,color,targetWidth,targetHeight,blendMode='Norm
 
 async function generateOverlay(){
   if(!state.original||!state.updated||!window.PDFLib){toast('Upload both PDFs before generating.');return}
-  const button=$('#generate');button.disabled=true;button.textContent='Building vector overlay…';$('#export-title').textContent='Building vector overlays';
+  const button=$('#cmp-generate');button.disabled=true;button.textContent='Building vector overlay…';$('#cmp-export-title').textContent='Building vector overlays';
   try{
     resetDetailedProgress();setPhaseProgress('sources',12,'Reading labels and bookmarks');
     await ensurePdfJsDocument(state.updated);const resolved=await resolveOutline(state.updated.outline,state.updated);await releasePdfJsDocuments();const output=await PDFLib.PDFDocument.create(),labels=[],pageMap=new Map(),batchSize=10,totalBatches=Math.max(1,Math.ceil(state.plan.length/batchSize)),sourcePageCount=state.original.entries.length+state.updated.entries.length,combinedBytes=state.original.file.size+state.updated.file.size,useFastPath=sourcePageCount<=80&&state.plan.length<=40&&combinedBytes<=250*1024*1024;
@@ -249,18 +253,19 @@ async function generateOverlay(){
     if(!output.getPageCount())throw new Error('The updated PDF contains no pages.');
     setExportProgress(76,'Applying page labels and updated-sheet bookmarks…');rebuildPageLabels(output,labels);let bookmarks=remapOutline(resolved,pageMap);bookmarks=addFallbackBookmarks(bookmarks,state.plan,'overlayOutput');rebuildBookmarks(output,bookmarks);
     output.setProducer('Drawing Overlay Comparison - Vector Overlay');output.setCreator('Drawing Overlay Comparison');output.setTitle(`${state.updated.file.name.replace(/\.pdf$/i,'')} - Vector Overlay`);output.setModificationDate(new Date());
-    setPhaseProgress('write',18,'Preparing PDF structure');setExportProgress(88,'Streaming the vector overlay PDF in memory-safe chunks…');const bytes=await writePdfAsBlob(output);setPhaseProgress('write',100,'Download ready');setExportProgress(100,`Created ${output.getPageCount()} sharp vector overlay pages: original green, updated magenta, perfect overlap black.`);download(outputName('overlay'),bytes);$('#export-title').textContent='Vector overlay created';button.textContent='Generate Again';toast('Vector overlay PDF downloaded.');
-  }catch(error){console.error(error);$('#export-title').textContent='Could not create overlay';$('#export-status').textContent=`Could not create the vector overlay PDF: ${String(error.message||'unknown error').slice(0,180)}`;toast('Vector overlay creation failed. See the message above.')}
+    setPhaseProgress('write',18,'Preparing PDF structure');setExportProgress(88,'Streaming the vector overlay PDF in memory-safe chunks…');const bytes=await writePdfAsBlob(output);setPhaseProgress('write',100,'Download ready');setExportProgress(100,`Created ${output.getPageCount()} sharp vector overlay pages: original green, updated magenta, perfect overlap black.`);download(outputName('overlay'),bytes);$('#cmp-export-title').textContent='Vector overlay created';button.textContent='Generate Again';toast('Vector overlay PDF downloaded.');
+  }catch(error){console.error(error);$('#cmp-export-title').textContent='Could not create overlay';$('#cmp-export-status').textContent=`Could not create the vector overlay PDF: ${String(error.message||'unknown error').slice(0,180)}`;toast('Vector overlay creation failed. See the message above.')}
   finally{button.disabled=false;if(button.textContent==='Building vector overlay…')button.textContent='Generate vector overlay'}
 }
 
 async function generate(){return state.mode==='overlay'?generateOverlay():generatePaired()}
 
 document.addEventListener('DOMContentLoaded',()=>{
-  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  document.querySelectorAll('.upload-card').forEach(card=>{const kind=card.dataset.kind,input=card.querySelector('.file-input'),dropzone=card.querySelector('.dropzone');dropzone.addEventListener('click',()=>input.click());input.addEventListener('change',()=>upload(input.files?.[0],kind));for(const eventName of ['dragenter','dragover'])card.addEventListener(eventName,event=>{event.preventDefault();card.classList.add('drag')});for(const eventName of ['dragleave','drop'])card.addEventListener(eventName,event=>{event.preventDefault();card.classList.remove('drag')});card.addEventListener('drop',event=>upload(event.dataTransfer?.files?.[0],kind))});
-  document.querySelectorAll('.mode').forEach(button=>button.addEventListener('click',()=>setMode(button.dataset.mode)));
+  root.querySelectorAll('.upload-card').forEach(card=>{const kind=card.dataset.cmpKind,input=card.querySelector('.file-input'),dropzone=card.querySelector('.dropzone');dropzone.addEventListener('click',()=>input.click());input.addEventListener('change',()=>upload(input.files?.[0],kind));for(const eventName of ['dragenter','dragover'])card.addEventListener(eventName,event=>{event.preventDefault();card.classList.add('drag')});for(const eventName of ['dragleave','drop'])card.addEventListener(eventName,event=>{event.preventDefault();card.classList.remove('drag')});card.addEventListener('drop',event=>upload(event.dataTransfer?.files?.[0],kind))});
+  root.querySelectorAll('.cmp-mode').forEach(button=>button.addEventListener('click',()=>setMode(button.dataset.mode)));
   setMode('overlay');
-  $('#generate').addEventListener('click',generate);
+  $('#cmp-generate').addEventListener('click',generate);
 });
 window.addEventListener('beforeunload',()=>{for(const record of [state.original,state.updated])if(record?.objectUrl)URL.revokeObjectURL(record.objectUrl)});
+
+})();

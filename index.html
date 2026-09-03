@@ -2,101 +2,212 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#f5f6f3" />
-    <title>Drawing Overlay Comparison</title>
-    <meta name="description" content="Pair original and updated drawing sheets by native PDF page label." />
-    <link rel="stylesheet" href="./styles.css?v=2026082711" />
-    <link rel="stylesheet" href="./overlay.css?v=2026082711" />
-    <link rel="stylesheet" href="./vector.css?v=2026082711" />
-    <link rel="stylesheet" href="./progress.css?v=2026082711" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f7f5" />
+    <title>Sheet Tools — Slip Sheet &amp; Sheet Comparison</title>
+    <meta name="description" content="Private, browser-based drawing and specification set tools." />
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    <link rel="stylesheet" href="./styles.css?v=2026090201" />
+    <link rel="stylesheet" href="./comparison.css?v=2026090201" />
+    <link rel="stylesheet" href="./shell.css?v=2026090201" />
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script defer src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-    <script defer src="./app.js?v=2026082711"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script defer src="./shell.js?v=2026090201"></script>
+    <script defer src="./slipsheet.js?v=2026090201"></script>
+    <script defer src="./comparison.js?v=2026090201"></script>
   </head>
-  <body class="overlay-mode">
-    <main class="shell">
+  <body class="app-cover-active mode-cover-active">
+    <main class="app-shell">
       <header class="topbar">
-        <div class="brand"><span class="brand-mark">DO</span><span>Drawing Overlay Comparison</span><span class="local">LOCAL</span></div>
-        <div class="privacy"><span aria-hidden="true">&#128274;</span> Files stay on this device</div>
+        <button class="brand" id="back-to-cover" type="button" aria-label="Return to tool selection">
+          <span class="brand-mark"><i class="fa-solid fa-layer-group"></i></span>
+          <span class="brand-name" data-app-name="slip">Slip Sheet</span>
+          <span class="brand-name" data-app-name="comparison">Sheet Comparison</span>
+          <span class="beta">LOCAL</span>
+        </button>
+        <nav class="mode-switch" id="slip-mode-switch" aria-label="Update type">
+          <button class="mode" data-mode="drawing"><span class="mode-main"><i class="fa-solid fa-drafting-compass" aria-hidden="true"></i>Drawing Update</span><small>Based on page labels</small></button>
+          <button class="mode" data-mode="spec"><span class="mode-main"><i class="fa-regular fa-file-lines"></i>Specification Update</span><small>Based on footer numbers</small></button>
+        </nav>
+        <div class="privacy"><i class="fa-solid fa-lock"></i> Files stay on this device</div>
       </header>
 
-      <section class="hero">
-        <div>
-          <p class="eyebrow">DRAWING REVIEW SET BUILDER</p>
-          <h1>Drawing Overlay Comparison</h1>
-          <p class="lede">Match selected drawing sheets by native PDF page label, retain inserted sheets, and preserve bookmarks in one review-ready PDF.</p>
+      <!-- ============================ TOP-LEVEL COVER ============================ -->
+      <section class="app-cover" id="app-cover" aria-label="Choose a tool">
+        <div class="app-cover-content">
+          <p class="eyebrow">LOCAL DRAWING &amp; SPEC TOOLKIT</p>
+          <h1>Choose a Tool</h1>
+          <p>Slip new sheets into an issued set, or overlay an original set against updated sheets to see exactly what changed. Your files never leave this device.</p>
+        </div>
+        <div class="app-switch" role="group" aria-label="Choose a tool">
+          <button class="app-mode" type="button" data-app="slip">
+            <span class="app-mode-main"><i class="fa-solid fa-layer-group" aria-hidden="true"></i>Slip Sheet</span>
+            <small>Replace and insert drawing sheets or specification sections in an issued set</small>
+            <span class="app-mode-tags"><span><i class="fa-solid fa-drafting-compass"></i> Drawing</span><span><i class="fa-regular fa-file-lines"></i> Specification</span></span>
+          </button>
+          <button class="app-mode" type="button" data-app="comparison">
+            <span class="app-mode-main"><i class="fa-solid fa-clone" aria-hidden="true"></i>Sheet Comparison</span>
+            <small>Pair or overlay original and updated sheets by native PDF page label</small>
+            <span class="app-mode-tags"><span><i class="fa-solid fa-table-columns"></i> Paired pages</span><span><i class="fa-solid fa-circle-half-stroke"></i> Vector overlay</span></span>
+          </button>
+        </div>
+        <div class="app-cover-notes"><span><i class="fa-solid fa-lock"></i> Private by design</span><span><i class="fa-solid fa-wand-magic-sparkles"></i> Built for issued sets</span></div>
+      </section>
+
+      <!-- ====================== SLIP SHEET — DRAWING / SPEC COVER ====================== -->
+      <section class="mode-cover" aria-label="Choose an update workflow">
+        <div class="mode-cover-content">
+          <p class="eyebrow">LOCAL SHEET SET MANAGER</p>
+          <h1>Choose Slip Sheet Mode</h1>
+          <p>Replace drawing sheets by page label, or update specification sections by footer number. Your files stay on this device.</p>
+          <div class="mode-cover-notes"><span><i class="fa-solid fa-lock"></i> Private by design</span><span><i class="fa-solid fa-wand-magic-sparkles"></i> Built for issued sets</span></div>
         </div>
       </section>
 
-      <section class="mode-bar" aria-label="Output mode">
-        <div class="mode-copy"><p class="eyebrow">OUTPUT MODE</p><strong id="mode-title">Vector two-color overlay PDF</strong><span id="mode-description">Original linework in pure green, updated linework in pure magenta, and perfect overlap shown black.</span></div>
-        <div class="mode-switch" role="group" aria-label="Choose PDF output mode">
-          <button class="mode" type="button" data-mode="pairs"><span class="mode-icon">1|2</span><span><strong>Paired pages</strong><small>Old page, then new page</small></span></button>
-          <button class="mode active" type="button" data-mode="overlay"><span class="mode-icon overlay-icon">&#9681;</span><span><strong>Vector overlay</strong><small>Original green · updated magenta</small></span></button>
-        </div>
-      </section>
-
-      <section class="upload-grid" aria-label="PDF uploads">
-        <article class="upload-card" id="original-card" data-kind="original">
-          <div class="card-top"><span class="card-icon original-icon">01</span><span class="card-label">ORIGINAL SET</span></div>
-          <h2>Complete original drawing set</h2>
-          <p>Used to retrieve the matching old version of each selected sheet.</p>
-          <button class="dropzone" type="button"><strong>Drop original PDF here</strong><span>or choose a file</span></button>
-          <input class="file-input" type="file" accept="application/pdf,.pdf" aria-label="Upload the complete original drawing set" />
-          <div class="file-meta empty">Awaiting original PDF</div>
-          <div class="card-progress hidden"><div><span class="progress-title">Reading page labels</span><span class="progress-count">0%</span></div><i><b></b></i></div>
-        </article>
-
-        <article class="upload-card" id="updated-card" data-kind="updated">
-          <div class="card-top"><span class="card-icon updated-icon">02</span><span class="card-label">SELECTED SHEETS</span></div>
-          <h2>Updated selected sheets</h2>
-          <p>The output order follows this PDF. New inserted sheets remain in place.</p>
-          <button class="dropzone" type="button"><strong>Drop updated PDF here</strong><span>or choose a file</span></button>
-          <input class="file-input" type="file" accept="application/pdf,.pdf" aria-label="Upload the updated selected drawing sheets" />
-          <div class="file-meta empty">Awaiting updated PDF</div>
-          <div class="card-progress hidden"><div><span class="progress-title">Reading page labels</span><span class="progress-count">0%</span></div><i><b></b></i></div>
-        </article>
-      </section>
-
-      <section class="review hidden" id="review-section">
-        <div class="review-head">
-          <div><p class="eyebrow">OUTPUT REVIEW</p><h2>Paired sheet sequence</h2><p id="review-copy">The sequence below is exactly how the PDF will be assembled.</p></div>
-          <div class="summary" id="summary"></div>
-        </div>
-
-        <div class="review-panel">
-          <div class="list-head"><span>Output pages</span><span>Page label</span><span>Source pages</span><span>Result</span></div>
-          <div class="sheet-list" id="sheet-list"></div>
-        </div>
-
-        <div class="overlay-settings" id="overlay-settings">
-          <div class="vector-legend"><span><i class="legend-swatch old-vector"></i><strong>Green</strong> original</span><span><i class="legend-swatch new-vector"></i><strong>Magenta</strong> updated</span><span><i class="legend-swatch overlap-vector"></i><strong>Black</strong> overlap</span></div>
-          <span class="vector-note">Vector lines stay sharp at any zoom. Inserted sheets display in magenta.</span>
-        </div>
-
-        <div class="warnings hidden" id="warnings" role="status"></div>
-
-        <section class="export-card">
-          <div class="export-copy">
-            <p class="eyebrow">EXPORT</p>
-            <h2 id="export-title">Ready to build</h2>
-            <p id="export-status">No rasterization: source PDF vectors remain sharp. Pure green and pure magenta combine to black where they align.</p>
+      <!-- =============================== SLIP SHEET — DRAWING =============================== -->
+      <section id="drawing-view">
+        <section class="hero">
+          <div><p class="eyebrow">DRAWING SET MANAGER</p><h1>Drawing Slip Sheet</h1><p class="lede">Replace and insert sheets by native PDF page label. Bookmarks, labels, and your files remain local.</p></div>
+          <div class="stepper" aria-label="Workflow">
+            <div class="step current"><span>1</span><label>Upload</label></div><i></i>
+            <div class="step"><span>2</span><label>Analyze</label></div><i></i>
+            <div class="step"><span>3</span><label>Review</label></div><i></i>
+            <div class="step"><span>4</span><label>Export</label></div>
           </div>
-          <button class="primary" id="generate" type="button">Generate vector overlay</button>
-          <div class="progress-track hidden" id="export-progress"><span></span></div>
-          <div class="phase-progress hidden" id="phase-progress">
+        </section>
+
+        <section class="upload-grid" id="upload-section">
+          <article class="upload-card" id="original-card" data-kind="original">
+            <div class="card-top"><span class="card-icon charcoal"><i class="fa-regular fa-file-pdf"></i></span><span class="card-label">STEP 01</span></div>
+            <h2>Original drawing set</h2><p>The complete, bookmarked drawing package.</p>
+            <button class="dropzone" type="button"><i class="fa-solid fa-arrow-up-from-bracket"></i><strong>Drop PDF here</strong><span>or choose a file</span></button>
+            <input class="file-input" type="file" accept="application/pdf" aria-label="Upload original drawing set" />
+            <div class="file-meta empty">Awaiting original PDF</div><div class="card-progress hidden" id="original-progress"><div><span class="card-progress-title">Reading PDF</span><span class="card-progress-count">0%</span></div><i><b></b></i></div>
+          </article>
+          <article class="upload-card ready" id="update-card" data-kind="update">
+            <div class="card-top"><span class="card-icon blue"><i class="fa-solid fa-arrows-rotate"></i></span><span class="card-label">STEP 02</span></div>
+            <h2>Updated sheets</h2><p>One compiled PDF containing revisions.</p>
+            <button class="dropzone" type="button"><i class="fa-solid fa-arrow-up-from-bracket"></i><strong>Drop PDF here</strong><span>or choose a file</span></button>
+            <input class="file-input" type="file" accept="application/pdf" aria-label="Upload update sheets" />
+            <div class="file-meta empty">Awaiting updated sheets PDF</div><div class="card-progress hidden" id="update-progress"><div><span class="card-progress-title">Reading PDF</span><span class="card-progress-count">0%</span></div><i><b></b></i></div>
+          </article>
+        </section>
+
+        <section class="analysis-panel hidden" id="analysis-panel">
+          <div class="analysis-copy"><div class="spinner"></div><div><strong id="progress-title">Reading Original PDF</strong><p id="progress-detail">Preparing a private workspace in your browser.</p></div></div>
+          <div class="progress-track"><span id="progress-bar"></span></div><span id="progress-count">0%</span>
+        </section>
+
+        <section id="review-section" class="review-section hidden">
+          <div class="review-head"><div><p class="eyebrow">STEP 03 — REVIEW</p><h2>Sheet Changes Preview</h2><p id="review-subtitle">Check the plan before generating your updated set.</p></div><div class="summary-chips" id="summary-chips"></div></div>
+          <div class="review-layout">
+            <aside class="workspace-left panel"><div class="left-tabs"><button class="left-tab active" data-left-pane="changes-pane">Page Label</button><button class="left-tab" data-left-pane="bookmarks-pane">Bookmarks</button></div><section class="changes left-pane" id="changes-pane"><div class="changes-heading"><span>Page Label</span><div id="column-summary" class="column-summary"></div></div><div class="list-toolbar"><div class="search"><input id="search-input" placeholder="Filter sheets…" aria-label="Filter sheets" /><button id="clear-search" type="button" aria-label="Clear sheet filter" title="Clear filter"><i class="fa-solid fa-xmark"></i></button></div><span id="changes-total"></span></div><div class="change-list" id="change-list"></div></section><section class="bookmarks left-pane hidden" id="bookmarks-pane"><div class="panel-title"><span>Original bookmarks</span><button class="icon-button" title="Expand tree"><i class="fa-solid fa-expand"></i></button></div><div id="bookmark-tree" class="tree"></div></section></aside>
+            <section class="preview panel"><div class="preview-top"><div><span class="panel-kicker">SHEET PREVIEW</span><h3 id="selected-label">Select a change</h3></div><div class="preview-upload"><label class="narratives-upload" title="Upload optional Narratives XLSX"><input id="narratives-input" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" /><i class="fa-solid fa-table-list"></i><span id="narratives-label">Narratives</span></label><div class="compare-icon-toggle" aria-label="Preview comparison mode"><button class="compare-mode" data-compare-view="split" title="Side by side"><i class="fa-solid fa-table-columns"></i></button><button class="compare-mode active" data-compare-view="overlay" title="Overlay"><i class="fa-solid fa-clone"></i></button></div><button class="subtle-button" id="remove-change" disabled><i class="fa-solid fa-xmark"></i> Remove pending</button></div></div><div class="preview-settings"><label class="threshold-control" for="change-threshold"><span>Change threshold</span><input id="change-threshold" type="range" min="10" max="300" step="5" value="200" /><output id="change-threshold-value" for="change-threshold">200 px</output></label><span id="overlay-note">Highlights connected changes larger than 200 px.</span><div class="sheet-data" id="sheet-data"></div></div><div class="narrative-comment hidden" id="narrative-comment"><span><i class="fa-regular fa-note-sticky"></i> NARRATIVE</span><p id="narrative-text"></p></div><div class="preview-pair hidden" id="split-preview"><div class="preview-page"><span>ORIGINAL</span><div class="split-stage" id="old-split-stage"><canvas id="old-preview"></canvas><canvas class="split-diff" id="old-diff"></canvas><span class="split-hint">Ctrl + scroll to zoom</span></div><p id="old-caption">—</p></div><div class="preview-page"><span>UPDATED</span><div class="split-stage" id="new-split-stage"><canvas id="new-preview"></canvas><canvas class="split-diff" id="new-diff"></canvas><span class="split-hint">Ctrl + scroll to zoom</span></div><p id="new-caption">—</p></div></div><div class="overlay-stage" id="overlay-stage"><canvas id="overlay-canvas"></canvas><span class="overlay-hint"><i class="fa-solid fa-up-down-left-right"></i> Drag to pan · Ctrl + scroll to zoom</span></div><p class="preview-empty" id="preview-empty">Select a sheet to compare its old and updated pages.</p></section>
+          </div>
+          <section class="export-bar"><div class="export-head"><div><p class="eyebrow">STEP 04 — EXPORT</p><h2 id="export-title">Ready for Generate</h2><p id="export-summary">Review all pending changes, then create your deliverables.</p><p class="export-status" id="export-status" aria-live="polite"></p></div><div class="export-actions"><label class="button secondary copy-markups-button" title="Transfer markup annotations from replaced original sheets"><input id="copy-markups" type="checkbox" checked /><span class="copy-markups-check"><i class="fa-solid fa-check"></i></span><span>Transfer markups</span></label><button class="button secondary compact-export-button" id="generate-report"><i class="fa-solid fa-table-list"></i>Generate Report</button><button class="button primary" id="generate-pdf"><i class="fa-solid fa-file-arrow-down"></i>Generate Updated PDF</button></div></div><div class="export-progress hidden" id="export-progress"></div></section>
+        </section>
+
+        <section class="demo-note" id="demo-note"><i class="fa-regular fa-circle-play"></i><span>Explore the interface with a realistic sample review plan.</span><button id="load-demo">Open sample plan</button></section>
+      </section>
+
+      <!-- ============================= SLIP SHEET — SPECIFICATION ============================= -->
+      <section id="spec-view" class="spec-view hidden">
+        <section class="spec-hero"><div><p class="eyebrow">SPECIFICATION SET MANAGER</p><h1>Specification Slip Sheet</h1><p>Group and replace specification sections by footer section number. Files remain private on this device.</p></div><div class="spec-hero-side"><p class="spec-disclaimer"><i class="fa-solid fa-circle-info"></i> Product Data Appendices are not included in this workflow.</p><div class="stepper" aria-label="Specification workflow"><div class="step current"><span>1</span><label>Upload</label></div><i></i><div class="step"><span>2</span><label>Analyze</label></div><i></i><div class="step"><span>3</span><label>Review</label></div><i></i><div class="step"><span>4</span><label>Export</label></div></div></div></section>
+        <section class="upload-grid spec-upload-grid">
+          <article class="upload-card" id="spec-current-card" data-spec-kind="current"><div class="card-top"><span class="card-icon charcoal"><i class="fa-solid fa-book"></i></span><span class="card-label">STEP 01</span></div><h2>Existing Spec Set</h2><p>The current issued specifications.</p><button class="dropzone" type="button"><i class="fa-solid fa-arrow-up-from-bracket"></i><strong>Drop PDF here</strong><span>or choose a file</span></button><input class="file-input" type="file" accept="application/pdf" /><div class="file-meta empty">Awaiting existing specification set</div><div class="card-progress hidden" id="spec-current-progress"><div><span class="card-progress-title">Reading section footers</span><span class="card-progress-count">0%</span></div><i><b></b></i></div></article>
+          <article class="upload-card muted-card" id="spec-incoming-card" data-spec-kind="incoming"><div class="card-top"><span class="card-icon blue"><i class="fa-solid fa-file-circle-plus"></i></span><span class="card-label">STEP 02</span></div><h2>Slip-in Spec Set</h2><p>The compiled specification sections to replace.</p><button class="dropzone" type="button" disabled><i class="fa-solid fa-arrow-up-from-bracket"></i><strong>Drop PDF here</strong><span>Upload the existing set first</span></button><input class="file-input" type="file" accept="application/pdf" disabled /><div class="file-meta empty">Locked until existing set is ready</div><div class="card-progress hidden" id="spec-incoming-progress"><div><span class="card-progress-title">Reading section footers</span><span class="card-progress-count">0%</span></div><i><b></b></i></div></article>
+        </section>
+        <section class="spec-review hidden" id="spec-review"><div class="review-head"><div><p class="eyebrow">SECTION REVIEW</p><h2>Specification Section Changes</h2><p id="spec-summary">Sections are identified from lower-right footer numbers.</p></div><div class="summary-chips" id="spec-chips"></div></div><div class="spec-workspace"><aside class="spec-outline panel"><div class="panel-title"><span>Existing Spec Bookmarks</span><span class="panel-kicker">TOP LEVEL</span></div><div class="tree" id="spec-bookmark-tree"></div></aside><section class="spec-groups panel"><div class="panel-title"><span>Section Comparison</span><div class="spec-find-actions"><button class="icon-button" id="spec-prev" title="Find previous change"><i class="fa-solid fa-chevron-up"></i> Previous</button><button class="icon-button" id="spec-next" title="Find next change">Next <i class="fa-solid fa-chevron-down"></i></button><span id="spec-group-count"></span></div></div><div class="spec-pair-head"><span>EXISTING SPEC SET</span><span>SLIP-IN SPEC SET</span></div><div id="spec-pair-list" class="spec-pair-list"></div><div id="spec-change-rail" class="spec-change-rail" aria-hidden="true"></div></section></div><section class="export-bar spec-export"><div class="export-head"><div><p class="eyebrow">EXPORT</p><h2 id="spec-export-title">Ready for Generate</h2><p id="spec-export-summary">Review grouped sections before exporting.</p><p class="export-status" id="spec-export-status"></p></div><div class="export-actions"><button class="button secondary" id="spec-report"><i class="fa-solid fa-table-list"></i>Generate Report</button><button class="button primary" id="spec-generate"><i class="fa-solid fa-file-arrow-down"></i>Generate Updated PDF</button></div></div><div class="export-progress" id="spec-export-progress"></div></section></section>
+        <section class="demo-note" id="spec-demo-note"><i class="fa-regular fa-circle-play"></i><span>Explore the interface with a realistic sample review plan.</span><button id="load-spec-demo">Open sample plan</button></section>
+      </section>
+
+      <!-- ================================ SHEET COMPARISON ================================ -->
+      <section id="comparison-view">
+        <section class="hero">
+          <div>
+            <p class="eyebrow">DRAWING REVIEW SET BUILDER</p>
+            <h1>Sheet Comparison</h1>
+            <p class="lede">Match selected drawing sheets by native PDF page label, retain inserted sheets, and preserve bookmarks in one review-ready PDF.</p>
+          </div>
+        </section>
+
+        <section class="mode-bar" aria-label="Output mode">
+          <div class="mode-copy"><p class="eyebrow">OUTPUT MODE</p><strong id="cmp-mode-title">Vector two-color overlay PDF</strong><span id="cmp-mode-description">Original linework in pure green, updated linework in pure magenta, and perfect overlap shown black.</span></div>
+          <div class="cmp-mode-switch" role="group" aria-label="Choose PDF output mode">
+            <button class="cmp-mode" type="button" data-mode="pairs"><span class="mode-icon">1|2</span><span><strong>Paired pages</strong><small>Old page, then new page</small></span></button>
+            <button class="cmp-mode active" type="button" data-mode="overlay"><span class="mode-icon overlay-icon">&#9681;</span><span><strong>Vector overlay</strong><small>Original green · updated magenta</small></span></button>
+          </div>
+        </section>
+
+        <section class="upload-grid" aria-label="PDF uploads">
+          <article class="upload-card" id="cmp-original-card" data-cmp-kind="original">
+            <div class="card-top"><span class="card-icon original-icon">01</span><span class="card-label">ORIGINAL SET</span></div>
+            <h2>Complete original drawing set</h2>
+            <p>Used to retrieve the matching old version of each selected sheet.</p>
+            <button class="dropzone" type="button"><strong>Drop original PDF here</strong><span>or choose a file</span></button>
+            <input class="file-input" type="file" accept="application/pdf,.pdf" aria-label="Upload the complete original drawing set" />
+            <div class="file-meta empty">Awaiting original PDF</div>
+            <div class="card-progress hidden"><div><span class="progress-title">Reading page labels</span><span class="progress-count">0%</span></div><i><b></b></i></div>
+          </article>
+
+          <article class="upload-card" id="cmp-updated-card" data-cmp-kind="updated">
+            <div class="card-top"><span class="card-icon updated-icon">02</span><span class="card-label">SELECTED SHEETS</span></div>
+            <h2>Updated selected sheets</h2>
+            <p>The output order follows this PDF. New inserted sheets remain in place.</p>
+            <button class="dropzone" type="button"><strong>Drop updated PDF here</strong><span>or choose a file</span></button>
+            <input class="file-input" type="file" accept="application/pdf,.pdf" aria-label="Upload the updated selected drawing sheets" />
+            <div class="file-meta empty">Awaiting updated PDF</div>
+            <div class="card-progress hidden"><div><span class="progress-title">Reading page labels</span><span class="progress-count">0%</span></div><i><b></b></i></div>
+          </article>
+        </section>
+
+        <section class="review hidden" id="cmp-review-section">
+          <div class="review-head">
+            <div><p class="eyebrow">OUTPUT REVIEW</p><h2>Paired sheet sequence</h2><p id="cmp-review-copy">The sequence below is exactly how the PDF will be assembled.</p></div>
+            <div class="summary" id="cmp-summary"></div>
+          </div>
+
+          <div class="review-panel">
+            <div class="list-head"><span>Output pages</span><span>Page label</span><span>Source pages</span><span>Result</span></div>
+            <div class="sheet-list" id="cmp-sheet-list"></div>
+          </div>
+
+          <div class="overlay-settings" id="cmp-overlay-settings">
+            <div class="vector-legend"><span><i class="legend-swatch old-vector"></i><strong>Green</strong> original</span><span><i class="legend-swatch new-vector"></i><strong>Magenta</strong> updated</span><span><i class="legend-swatch overlap-vector"></i><strong>Black</strong> overlap</span></div>
+            <span class="vector-note">Vector lines stay sharp at any zoom. Inserted sheets display in magenta.</span>
+          </div>
+
+          <div class="warnings hidden" id="cmp-warnings" role="status"></div>
+
+          <section class="export-card">
+            <div class="export-copy">
+              <p class="eyebrow">EXPORT</p>
+              <h2 id="cmp-export-title">Ready to build</h2>
+              <p id="cmp-export-status">No rasterization: source PDF vectors remain sharp. Pure green and pure magenta combine to black where they align.</p>
+            </div>
+            <button class="primary" id="cmp-generate" type="button">Generate vector overlay</button>
+            <div class="progress-track hidden" id="cmp-export-progress"><span></span></div>
+            <div class="phase-progress hidden" id="cmp-phase-progress">
               <div class="phase-row" data-phase="sources"><span>1</span><div><strong>Read source PDFs</strong><i><b></b></i></div><em>Waiting</em></div>
               <div class="phase-row" data-phase="masks"><span>2</span><div><strong>Build difference masks</strong><i><b></b></i></div><em>Waiting</em></div>
               <div class="phase-row" data-phase="pages"><span>3</span><div><strong>Assemble overlay pages</strong><i><b></b></i></div><em>Waiting</em></div>
               <div class="phase-row" data-phase="write"><span>4</span><div><strong>Write download PDF</strong><i><b></b></i></div><em>Waiting</em></div>
-              <div class="batch-progress" id="batch-progress"><div><strong class="batch-title">Current 10-sheet batch</strong><span class="batch-count">0 / 10</span></div><i><b></b></i><div class="batch-steps"><span class="batch-step">1</span><span class="batch-step">2</span><span class="batch-step">3</span><span class="batch-step">4</span><span class="batch-step">5</span><span class="batch-step">6</span><span class="batch-step">7</span><span class="batch-step">8</span><span class="batch-step">9</span><span class="batch-step">10</span></div></div>
-          </div>
+              <div class="batch-progress" id="cmp-batch-progress"><div><strong class="batch-title">Current 10-sheet batch</strong><span class="batch-count">0 / 10</span></div><i><b></b></i><div class="batch-steps"><span class="batch-step">1</span><span class="batch-step">2</span><span class="batch-step">3</span><span class="batch-step">4</span><span class="batch-step">5</span><span class="batch-step">6</span><span class="batch-step">7</span><span class="batch-step">8</span><span class="batch-step">9</span><span class="batch-step">10</span></div></div>
+            </div>
+          </section>
         </section>
       </section>
     </main>
 
-    <footer>Drawing Overlay Comparison <strong>v2026.08.27.11</strong></footer>
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <footer class="app-version" aria-label="Application version">
+      <span>Sheet Tools <strong>v2026.09.02.1</strong></span>
+      <span class="app-version-divider" aria-hidden="true">·</span>
+      <span>Slip Sheet v2026.08.25.3</span>
+      <span class="app-version-divider" aria-hidden="true">·</span>
+      <span>Sheet Comparison v2026.08.27.11</span>
+    </footer>
+    <div id="toast" class="toast" role="status"></div>
   </body>
 </html>
