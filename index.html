@@ -8,13 +8,13 @@
     <meta name="description" content="Private, browser-based drawing and specification set tools." />
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=2026092111" />
+    <link rel="stylesheet" href="./styles.css?v=2026092113" />
     
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script defer src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script defer src="./shell.js?v=2026092111"></script>
-    <script defer src="./app.js?v=2026092111"></script>
+    <script defer src="./shell.js?v=2026092113"></script>
+    <script defer src="./app.js?v=2026092113"></script>
   </head>
   <body class="app-cover-active mode-cover-active">
     <main class="app-shell">
@@ -175,6 +175,7 @@
           <div class="overlay-settings" id="cmp-overlay-settings">
             <div class="vector-legend"><span><i class="legend-swatch old-vector"></i><strong>Green</strong> original</span><span><i class="legend-swatch new-vector"></i><strong>Magenta</strong> updated</span><span><i class="legend-swatch overlap-vector"></i><strong>Black</strong> overlap</span></div>
             <span class="vector-note">Vector lines stay sharp at any zoom. Inserted sheets display in magenta.</span>
+            <label class="button secondary overlay-toggle" title="Include sheets from updated set that don't exist in original"><input id="cmp-insert-new-sheets" type="checkbox" checked /><span class="overlay-toggle-check"><i class="fa-solid fa-check"></i></span><span>Include new sheets</span></label>
           </div>
 
           <div class="warnings hidden" id="cmp-warnings" role="status"></div>
