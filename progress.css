@@ -133,3 +133,29 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Honest activity indicators: measured bytes when available, indeterminate otherwise. */
+.card-progress{padding:13px 14px;border:1px solid #cbded0;border-radius:10px;background:#f1f8f3}
+.card-progress>div:first-child{font-size:12px;font-weight:700;color:#315e42}
+.card-progress i{height:7px;position:relative}
+.card-progress.indeterminate i b{position:absolute;left:0;animation:load-sweep 1.6s ease-in-out infinite}
+.card-progress.indeterminate .progress-count{font-size:11px}
+.load-detail{margin-top:8px;font-size:11px;line-height:1.4;color:#4d6856;overflow-wrap:anywhere}
+.export-live{grid-column:1/-1;display:flex;align-items:center;gap:10px;min-width:0;padding:11px 14px;border:1px solid #536658;border-radius:9px;background:#303a32;color:#e8f5e9;font-size:12px}
+.export-live strong{min-width:0;overflow-wrap:anywhere;font-size:13px}
+.export-live #export-live-elapsed{margin-left:auto;white-space:nowrap;color:#b5d4bd;font-variant-numeric:tabular-nums}
+.load-spinner{width:15px;height:15px;flex:0 0 15px;border:2px solid #658b6e;border-top-color:#b9edc5;border-radius:50%;animation:load-spin .8s linear infinite}
+@keyframes load-sweep{0%{transform:translateX(0)}50%{transform:translateX(210%)}100%{transform:translateX(0)}}
+@keyframes load-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.load-spinner,.card-progress.indeterminate i b{animation:none}}
+
+/* Activity sweep moves even when a worker is busy parsing or serializing. */
+.export-card>.progress-track.working{position:relative;overflow:hidden}
+.export-card>.progress-track.working::after{content:"";position:absolute;top:0;bottom:0;left:-24%;width:24%;background:linear-gradient(90deg,transparent,#d3f6dd,transparent);animation:export-sweep 2.3s ease-in-out infinite;pointer-events:none}
+@keyframes export-sweep{from{left:-24%}to{left:100%}}
+@media(prefers-reduced-motion:reduce){.export-card>.progress-track.working::after{animation:none;left:0;width:100%;opacity:.25}}
+
+/* Full sheet title lives below master bar; phase statuses remain compact. */
+.export-card>.master-sheet{grid-column:1/-1;width:100%;min-width:0;min-height:20px;margin-top:-12px;color:#b8d9c0;font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+.phase-row em{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+@media(max-width:680px){.phase-row em{max-width:100%}}

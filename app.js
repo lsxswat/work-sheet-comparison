@@ -1,5 +1,5 @@
 /* Drawing Overlay Comparison. PDF bytes are processed entirely in the browser. */
-const state={original:null,updated:null,plan:[],mode:'overlay',keepNonMatchingOriginal:true,keepNonMatchingUpdated:true};
+const state={original:null,updated:null,plan:[],mode:'overlay',keepNonMatchingOriginal:true,keepNonMatchingUpdated:true,checkAlignment:false};
 const $=selector=>document.querySelector(selector);
 const escapeHtml=value=>String(value).replace(/[&<>\"]/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;"}[char]));
 const displayLabel=value=>String(value??'').trim();
@@ -9,26 +9,39 @@ function toast(message){const element=$('#toast');element.textContent=message;el
 function countOutline(items){return (items||[]).reduce((count,item)=>count+1+countOutline(item.items),0)}
 function formatSize(bytes){return bytes>=1048576?`${Math.round(bytes/1048576)} MB`:`${Math.max(1,Math.round(bytes/1024))} KB`}
 function isPdf(file){return file&&(file.type==='application/pdf'||/\.pdf$/i.test(file.name))}
-function setCardProgress(kind,title,percent){const card=$(`#${kind}-card`),progress=card.querySelector('.card-progress');progress.classList.remove('hidden');progress.querySelector('.progress-title').textContent=title;progress.querySelector('.progress-count').textContent=`${Math.round(percent)}%`;progress.querySelector('b').style.width=`${percent}%`}
+function setCardProgress(kind,title,percent,detail='',indeterminate=false){
+  const card=$(`#${kind}-card`),progress=card.querySelector('.card-progress');progress.classList.remove('hidden');
+  progress.classList.toggle('indeterminate',indeterminate);
+  progress.querySelector('.progress-title').textContent=title;
+  progress.querySelector('.progress-count').textContent=indeterminate?'Working':`${Math.round(percent)}%`;
+  progress.querySelector('b').style.width=indeterminate?'32%':`${percent}%`;
+  const info=progress.querySelector('.load-detail');if(info)info.textContent=detail;
+}
+function startLiveStatus(update){const started=performance.now();let stage='';const render=()=>update(stage,Math.floor((performance.now()-started)/1000));
+  const timer=setInterval(render,1000);return {stage(value){stage=value;render()},stop(){clearInterval(timer)}};
+}
+function showExportStage(stage,seconds){const live=$('#export-live');if(!live)return;live.classList.remove('hidden');$('#export-live-stage').textContent=stage;$('#export-live-elapsed').textContent=`${seconds}s elapsed`}
 function openLocalPdf(objectUrl){return pdfjsLib.getDocument({url:objectUrl,disableRange:true,disableStream:true,disableAutoFetch:true})}
 
 async function parsePdf(file,kind){
   if(!window.pdfjsLib)throw new Error('The PDF reader did not load. Check the connection and reload this page.');
-  setCardProgress(kind,'Loading PDF',12);
+  const live=startLiveStatus((stage,seconds)=>{const detail=$(`#${kind}-card .load-detail`);if(detail)detail.textContent=`${stage} · ${seconds}s elapsed`});
+  setCardProgress(kind,'Opening PDF',0,`Opening local file · 0s elapsed`,true);
+  live.stage('Opening local file');
   const objectUrl=URL.createObjectURL(file);
   try{
     const task=openLocalPdf(objectUrl);
+    task.onProgress=event=>{if(event.total>0){const percent=Math.min(90,Math.round(event.loaded/event.total*90));setCardProgress(kind,'Reading PDF bytes',percent,`Read ${formatSize(event.loaded)} of ${formatSize(event.total)}`);live.stage('Reading PDF bytes')}else live.stage(`Reading PDF bytes (${formatSize(event.loaded)})`)};
     const doc=await task.promise;
-    setCardProgress(kind,'Reading native page labels',55);
+    setCardProgress(kind,'Reading page labels',92,'Reading native labels and bookmarks',true);live.stage('Reading native labels and bookmarks');
     const [nativeLabels,nativeOutline]=await Promise.all([doc.getPageLabels(),doc.getOutline()]);
     const labels=nativeLabels||Array.from({length:doc.numPages},(_,index)=>String(index+1));
     const outline=nativeOutline||[];
     const entries=labels.map((label,index)=>({label:displayLabel(label)||String(index+1),key:matchKey(label||String(index+1)),index}));
-    setCardProgress(kind,'PDF ready',100);
+    setCardProgress(kind,'PDF ready',100,`${doc.numPages} pages · ${countOutline(outline)} bookmarks`);
     return {file,objectUrl,doc,labels,outline,entries,bookmarkCount:countOutline(outline)};
-  }catch(error){URL.revokeObjectURL(objectUrl);throw error}
+  }catch(error){URL.revokeObjectURL(objectUrl);throw error}finally{live.stop()}
 }
-
 async function ensurePdfJsDocument(record){if(record?.doc)return record.doc;if(!record?.objectUrl)record.objectUrl=URL.createObjectURL(record.file);const task=openLocalPdf(record.objectUrl);record.doc=await task.promise;return record.doc}
 async function releasePdfJsDocuments(){const releases=[];for(const record of [state.original,state.updated]){if(!record?.doc)continue;const doc=record.doc;record.doc=null;releases.push(doc.destroy().catch(error=>console.warn('Could not release a PDF preview document.',error)))}await Promise.all(releases)}
 async function disposePdfRecord(record){if(!record)return;if(record.doc){try{await record.doc.destroy()}catch(error){console.warn('Could not release a PDF preview document.',error)}}if(record.objectUrl)URL.revokeObjectURL(record.objectUrl);record.doc=null;record.objectUrl=null}
@@ -158,10 +171,11 @@ function rebuildBookmarks(pdf,nodes){
 function download(name,bytes){const blob=bytes instanceof Blob?bytes:new Blob([bytes],{type:'application/pdf'}),url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download=name;document.body.append(anchor);anchor.click();anchor.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)}
 function outputName(mode=state.mode){const base=state.updated.file.name.replace(/\.pdf$/i,'');return `${base}_${mode==='overlay'?'Vector-Overlay':'Original-New-Pairs'}.pdf`}
 function setExportProgress(percent,message){$('#export-progress').classList.remove('hidden');$('#export-progress span').style.width=`${percent}%`;$('#export-status').textContent=message}
-function resetDetailedProgress(){const panel=$('#phase-progress');panel.classList.remove('hidden');panel.querySelectorAll('.phase-row').forEach(row=>{row.classList.remove('active','done');row.querySelector('b').style.width='0%';row.querySelector('em').textContent='Waiting'});setBatchProgress(0,Math.min(10,state.plan.length),1,Math.max(1,Math.ceil(state.plan.length/10)),0)}
+function resetDetailedProgress(){const panel=$('#phase-progress');panel.classList.remove('hidden');panel.querySelectorAll('.phase-row').forEach(row=>{row.classList.remove('active','done');row.querySelector('b').style.width='0%';row.querySelector('em').textContent='Waiting'});const sub=$('#sub-progress');if(sub){sub.querySelector('#sub-count').textContent='0 / 0';sub.querySelector('b').style.width='0%';sub.querySelector('#sub-detail').textContent='Ready'}}
 function setPhaseProgress(id,percent,status){const row=$(`[data-phase="${id}"]`);if(!row)return;row.classList.toggle('done',percent>=100);row.classList.toggle('active',percent<100&&percent>0);row.querySelector('b').style.width=`${Math.max(0,Math.min(100,percent))}%`;row.querySelector('em').textContent=status}
-function setBatchProgress(done,total,batchNumber,totalBatches,activePercent=0){const panel=$('#batch-progress');panel.querySelector('.batch-title').textContent=`Current 10-sheet batch ${batchNumber} of ${totalBatches}`;panel.querySelector('.batch-count').textContent=`${done} / ${total}`;panel.querySelector('b').style.width=`${total?done/total*100:0}%`;panel.querySelectorAll('.batch-step').forEach((step,index)=>{const progress=index<done?100:index===done&&index<total?activePercent:0;step.style.setProperty('--step-progress',`${Math.max(0,Math.min(100,progress))}%`);step.classList.toggle('complete',progress>=100);step.classList.toggle('active',progress>0&&progress<100);step.classList.toggle('unused',index>=total)})}
-function beginSmoothBatchStep(done,total,batchNumber,totalBatches){const started=performance.now();setBatchProgress(done,total,batchNumber,totalBatches,0);const timer=setInterval(()=>{const value=Math.min(80,(performance.now()-started)/5000*80);setBatchProgress(done,total,batchNumber,totalBatches,value);if(value>=80)clearInterval(timer)},50);return {advance(){},finish(){clearInterval(timer);setBatchProgress(done+1,total,batchNumber,totalBatches,0)}}}
+function setSubProgress(current,total,detail,title='Processing sheets'){const sub=$('#sub-progress');if(!sub)return;const pct=total?Math.round(current/total*100):0;sub.querySelector('#sub-title').textContent=title;sub.querySelector('#sub-count').textContent=`${current} / ${total}`;sub.querySelector('b').style.width=`${pct}%`;sub.querySelector('#sub-detail').textContent=detail}
+
+
 const pdfByteEncoder=new TextEncoder();
 function pdfBytes(value){return pdfByteEncoder.encode(value)}
 function pdfObjectChunk(reference,object){const prefix=pdfBytes(`${reference.objectNumber} ${reference.generationNumber} obj\n`),suffix=pdfBytes('\nendobj\n\n'),chunk=new Uint8Array(prefix.length+object.sizeInBytes()+suffix.length);chunk.set(prefix,0);const end=prefix.length+object.copyBytesInto(chunk,prefix.length);chunk.set(suffix,end);return chunk}
@@ -247,47 +261,137 @@ async function embedVectorInkMask(output,stagePage){
   const softMask=context.obj({Type:PDFName.of('Mask'),S:PDFName.of('Luminosity'),G:embedded.ref,BC:[0,0,0]});
   const result={width:embedded.width,height:embedded.height,softMask};if(Array.isArray(output.embeddedPages))output.embeddedPages.length=0;return result;
 }
-function paintVectorInk(page,mask,color,targetWidth,targetHeight,blendMode='Normal'){
-  const {PDFName}=PDFLib,context=page.doc.context,scale=Math.min(targetWidth/mask.width,targetHeight/mask.height),x=(targetWidth-mask.width*scale)/2,y=(targetHeight-mask.height*scale)/2;
+// Preserve v10's broad five-pixel border detection and confidence gate.
+// Refine only inside the detected rule using its grayscale center of mass.
+async function detectDrawingFrame(record,index){
+  await ensurePdfJsDocument(record);
+  const pdfPage=await record.doc.getPage(index+1),base=pdfPage.getViewport({scale:1});
+  const viewport=pdfPage.getViewport({scale:2400/Math.max(base.width,base.height)});
+  const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  try{
+    await pdfPage.render({canvasContext:ctx,viewport,background:'rgb(255,255,255)'}).promise;
+    const {width:w,height:h}=canvas,data=ctx.getImageData(0,0,w,h).data;
+    const dark=(x,y)=>{const i=(y*w+x)*4;return (data[i]*77+data[i+1]*150+data[i+2]*29)<(205*256)};
+    const strength=(x,y)=>{const i=(y*w+x)*4;return Math.max(0,255-(data[i]*77+data[i+1]*150+data[i+2]*29)/256)};
+    const score=(axis,pos)=>{let hit=0,total=0;
+      if(axis==='x'){for(let y=Math.round(h*.07);y<h*.93;y+=4){total++;for(let k=-2;k<=2;k++)if(dark(pos+k,y)){hit++;break}}}
+      else{for(let x=Math.round(w*.08);x<w*.86;x+=4){total++;for(let k=-2;k<=2;k++)if(dark(x,pos+k)){hit++;break}}}
+      return hit/Math.max(1,total)};
+    const pick=(axis,lo,hi)=>{const size=axis==='x'?w:h;let best={pos:0,score:0};
+      for(let v=Math.max(4,Math.floor(size*lo));v<Math.min(size-4,Math.ceil(size*hi));v++){
+        const value=score(axis,v);if(value>best.score)best={pos:v,score:value};}
+      if(best.score<.55)return null;
+      // The v10 peak can sit up to two pixels from the actual line center.
+      // Find the strongest continuous rule near it, then use its subpixel centroid.
+      let candidate=best.pos,peak=-1;
+      for(let v=best.pos-3;v<=best.pos+3;v++){
+        let sum=0,count=0;
+        if(axis==='x')for(let y=Math.round(h*.07);y<h*.93;y+=4){sum+=strength(v,y);count++}
+        else for(let x=Math.round(w*.08);x<w*.86;x+=4){sum+=strength(x,v);count++}
+        if(sum/count>peak){peak=sum/count;candidate=v}
+      }
+      let mass=0,weighted=0;
+      for(let v=candidate-2;v<=candidate+2;v++){
+        let sum=0,count=0;
+        if(axis==='x')for(let y=Math.round(h*.07);y<h*.93;y+=4){sum+=strength(v,y);count++}
+        else for(let x=Math.round(w*.08);x<w*.86;x+=4){sum+=strength(x,v);count++}
+        const weight=Math.max(0,sum/count-30);mass+=weight;weighted+=v*weight;
+      }
+      return (mass?weighted/mass:candidate)/size;
+    };
+    const left=pick('x',.008,.045),right=pick('x',.885,.94),top=pick('y',.005,.045),bottom=pick('y',.955,.995);
+    if([left,right,top,bottom].some(value=>value===null))return null;
+    return {left,right,top,bottom};
+  }finally{canvas.width=canvas.height=1}
+}
+async function sheetAlignment(item){
+  if(!state.checkAlignment||!item.original)return null;
+  const [oldBox,newBox]=await Promise.all([detectDrawingFrame(state.original,item.original.index),detectDrawingFrame(state.updated,item.updated.index)]);
+  if(!oldBox||!newBox)return null;
+  const sx=(newBox.right-newBox.left)/(oldBox.right-oldBox.left),sy=(newBox.bottom-newBox.top)/(oldBox.bottom-oldBox.top);
+  if(![sx,sy].every(v=>Number.isFinite(v)&&v>.97&&v<1.03))return null;
+  return {oldBox,newBox,sx,sy};
+}
+function paintVectorInk(page,mask,color,targetWidth,targetHeight,blendMode='Normal',alignment=null){
+  const {PDFName}=PDFLib,context=page.doc.context,scale=Math.min(targetWidth/mask.width,targetHeight/mask.height);
+  const sx=alignment?alignment.sx*targetWidth/mask.width:scale,sy=alignment?alignment.sy*targetHeight/mask.height:scale;
+  const x=alignment?(alignment.newBox.left-alignment.oldBox.left*alignment.sx)*targetWidth:(targetWidth-mask.width*scale)/2;
+  const y=alignment?((1-alignment.newBox.bottom)-(1-alignment.oldBox.bottom)*alignment.sy)*targetHeight:(targetHeight-mask.height*scale)/2;
   const graphicsState=context.register(context.obj({Type:PDFName.of('ExtGState'),SMask:mask.softMask,BM:PDFName.of(blendMode),AIS:false})),key=page.node.newExtGState('InkMask',graphicsState);
-  page.pushOperators(PDFLib.pushGraphicsState(),PDFLib.concatTransformationMatrix(scale,0,0,scale,x,y),PDFLib.setGraphicsState(key),PDFLib.setFillingRgbColor(color[0],color[1],color[2]),PDFLib.rectangle(0,0,mask.width,mask.height),PDFLib.fill(),PDFLib.popGraphicsState());
+  page.pushOperators(PDFLib.pushGraphicsState(),PDFLib.concatTransformationMatrix(sx,0,0,sy,x,y),PDFLib.setGraphicsState(key),PDFLib.setFillingRgbColor(color[0],color[1],color[2]),PDFLib.rectangle(0,0,mask.width,mask.height),PDFLib.fill(),PDFLib.popGraphicsState());
 }
 
 async function generateOverlay(){
   if(!state.original||!state.updated||!window.PDFLib){toast('Upload both PDFs before generating.');return}
+  if(!state.plan.length){toast('No sheets selected for the overlay.');return}
   const button=$('#generate');button.disabled=true;button.textContent='Building vector overlay…';$('#export-title').textContent='Building vector overlays';
+  resetDetailedProgress();setExportProgress(1,'Preparing drawing sources…');$('#master-sheet').textContent='Current operation: Preparing drawing sources';
+  const exportLive=startLiveStatus(showExportStage);exportLive.stage('Preparing drawing sources');$('#export-progress').classList.add('working');
+  let worker=null,workerUrl=null;
   try{
-    resetDetailedProgress();setPhaseProgress('sources',12,'Reading labels and bookmarks');
-    await ensurePdfJsDocument(state.updated);const resolved=await resolveOutline(state.updated.outline,state.updated);await releasePdfJsDocuments();const output=await PDFLib.PDFDocument.create(),labels=[],pageMap=new Map(),batchSize=10,totalBatches=Math.max(1,Math.ceil(state.plan.length/batchSize)),sourcePageCount=state.original.entries.length+state.updated.entries.length,combinedBytes=state.original.file.size+state.updated.file.size,useFastPath=sourcePageCount<=80&&state.plan.length<=40&&combinedBytes<=250*1024*1024;
-    if(useFastPath){
-      setPhaseProgress('sources',45,`Fast load for ${sourcePageCount} source pages`);setExportProgress(8,'Small drawing set detected · loading both PDFs together…');let [originalPdf,updatedPdf]=await Promise.all([loadPdfLibDocument(state.original),loadPdfLibDocument(state.updated)]);setPhaseProgress('sources',100,'Both sources ready');
-      for(let batchStart=0;batchStart<state.plan.length;batchStart+=batchSize){
-        const batchItems=state.plan.slice(batchStart,batchStart+batchSize),batchEnd=batchStart+batchItems.length,batchNumber=Math.floor(batchStart/batchSize)+1;setExportProgress(18+52*(batchStart/Math.max(1,state.plan.length)),`Fast processing · sheets ${batchStart+1}-${batchEnd}…`);setBatchProgress(0,batchItems.length,batchNumber,totalBatches,0);
-        for(let offset=0;offset<batchItems.length;offset++){const index=batchStart+offset,item=batchItems[offset],overall=(index+1)/Math.max(1,state.plan.length),stepProgress=beginSmoothBatchStep(offset,batchItems.length,batchNumber,totalBatches);let original=null;if(item.original){let originalStage=await prepareVectorInkStage(originalPdf,item.original.index);original=await embedVectorInkMask(output,originalStage);originalStage=null}let freshStage=await prepareVectorInkStage(updatedPdf,item.updated.index),fresh=await embedVectorInkMask(output,freshStage);freshStage=null;setPhaseProgress('masks',overall*100,`Sheet ${index+1} of ${state.plan.length}`);const page=output.addPage([fresh.width,fresh.height]);page.drawRectangle({x:0,y:0,width:fresh.width,height:fresh.height,color:PDFLib.rgb(1,1,1)});if(original)paintVectorInk(page,original,[0,1,0],fresh.width,fresh.height,'Normal');paintVectorInk(page,fresh,[1,0,1],fresh.width,fresh.height,original?'Multiply':'Normal');labels.push(item.label);pageMap.set(item.updated.index,index);item.overlayOutput=index+1;setPhaseProgress('pages',overall*100,`${index+1} pages assembled`);stepProgress.finish();await new Promise(resolve=>setTimeout(resolve,0))}
+    const alignmentResults={};let aligned=0,skipped=0;
+    if(state.checkAlignment){
+      await Promise.all([ensurePdfJsDocument(state.original),ensurePdfJsDocument(state.updated)]);
+      for(let i=0;i<state.plan.length;i++){
+        const item=state.plan[i];if(!item.original)continue;
+        exportLive.stage(`Checking drawing frame ${i+1}/${state.plan.length}: ${item.label}`);
+        setPhaseProgress('sources',Math.round(30*(i+1)/state.plan.length),`Checking frame ${i+1}/${state.plan.length}`);
+        const transform=await sheetAlignment(item);alignmentResults[i]=transform;
+        if(transform)aligned++;else skipped++;
+        await new Promise(resolve=>setTimeout(resolve,0));
       }
-      originalPdf=null;updatedPdf=null;
-    }else{
-      const originalMasks=new Array(state.plan.length).fill(null);setExportProgress(8,`Large drawing set detected · using memory-safe 10-sheet parts…`);setPhaseProgress('sources',45,'Loading original drawing vectors');let originalPdf=await loadPdfLibDocument(state.original);setPhaseProgress('sources',68,'Original source ready');
-      for(let batchStart=0;batchStart<state.plan.length;batchStart+=batchSize){
-        const batchItems=state.plan.slice(batchStart,batchStart+batchSize),batchNumber=Math.floor(batchStart/batchSize)+1;setExportProgress(10+18*(batchStart/Math.max(1,state.plan.length)),`Preparing original masks · batch ${batchNumber} of ${totalBatches}…`);setBatchProgress(0,batchItems.length,batchNumber,totalBatches,0);
-        for(let offset=0;offset<batchItems.length;offset++){const index=batchStart+offset,item=batchItems[offset],overall=(index+1)/Math.max(1,state.plan.length),stepProgress=beginSmoothBatchStep(offset,batchItems.length,batchNumber,totalBatches);if(item.original){let stage=await prepareVectorInkStage(originalPdf,item.original.index);originalMasks[index]=await embedVectorInkMask(output,stage);stage=null}setPhaseProgress('masks',overall*50,`Original sheet ${index+1} of ${state.plan.length}`);stepProgress.finish();await new Promise(resolve=>setTimeout(resolve,0))}
-      }
-      originalPdf=null;await new Promise(resolve=>setTimeout(resolve,40));setPhaseProgress('sources',82,'Loading updated drawing vectors');let updatedPdf=await loadPdfLibDocument(state.updated);setPhaseProgress('sources',100,'Sources ready');
-      for(let batchStart=0;batchStart<state.plan.length;batchStart+=batchSize){
-        const batchItems=state.plan.slice(batchStart,batchStart+batchSize),batchEnd=batchStart+batchItems.length,batchNumber=Math.floor(batchStart/batchSize)+1,percent=30+40*(batchStart/Math.max(1,state.plan.length));setExportProgress(percent,`Assembling 10-sheet batch ${batchNumber} of ${totalBatches}: sheets ${batchStart+1}-${batchEnd}…`);setBatchProgress(0,batchItems.length,batchNumber,totalBatches,0);
-        for(let offset=0;offset<batchItems.length;offset++){const index=batchStart+offset,item=batchItems[offset],overall=(index+1)/Math.max(1,state.plan.length),original=originalMasks[index],stepProgress=beginSmoothBatchStep(offset,batchItems.length,batchNumber,totalBatches);let freshStage=await prepareVectorInkStage(updatedPdf,item.updated.index);const fresh=await embedVectorInkMask(output,freshStage);freshStage=null;setPhaseProgress('masks',50+overall*50,`Updated sheet ${index+1} of ${state.plan.length}`);const page=output.addPage([fresh.width,fresh.height]);page.drawRectangle({x:0,y:0,width:fresh.width,height:fresh.height,color:PDFLib.rgb(1,1,1)});if(original)paintVectorInk(page,original,[0,1,0],fresh.width,fresh.height,'Normal');paintVectorInk(page,fresh,[1,0,1],fresh.width,fresh.height,original?'Multiply':'Normal');labels.push(item.label);pageMap.set(item.updated.index,index);item.overlayOutput=index+1;setPhaseProgress('pages',overall*100,`${index+1} pages assembled`);stepProgress.finish();await new Promise(resolve=>setTimeout(resolve,0))}
-        setExportProgress(18+52*(batchEnd/Math.max(1,state.plan.length)),`Completed vector batch through sheet ${batchEnd} of ${state.plan.length}.`);await new Promise(resolve=>setTimeout(resolve,0));
-      }
-      updatedPdf=null;
     }
-    if(!output.getPageCount())throw new Error('The updated PDF contains no pages.');
-    setExportProgress(76,'Applying page labels and updated-sheet bookmarks…');rebuildPageLabels(output,labels);let bookmarks=remapOutline(resolved,pageMap);bookmarks=addFallbackBookmarks(bookmarks,state.plan,'overlayOutput');rebuildBookmarks(output,bookmarks);
-    output.setProducer('Drawing Overlay Comparison - Vector Overlay');output.setCreator('Drawing Overlay Comparison');output.setTitle(`${state.updated.file.name.replace(/\.pdf$/i,'')} - Vector Overlay`);output.setModificationDate(new Date());
-    setPhaseProgress('write',18,'Preparing PDF structure');setExportProgress(88,'Streaming the vector overlay PDF in memory-safe chunks…');const bytes=await writePdfAsBlob(output);setPhaseProgress('write',100,'Download ready');setExportProgress(100,`Created ${output.getPageCount()} sharp vector overlay pages: original green, updated magenta, perfect overlap black.`);download(outputName('overlay'),bytes);$('#export-title').textContent='Vector overlay created';button.textContent='Generate Again';toast('Vector overlay PDF downloaded.');
+    exportLive.stage('Reading updated bookmarks');setPhaseProgress('sources',35,'Reading bookmarks');
+    await ensurePdfJsDocument(state.updated);
+    const outline=await resolveOutline(state.updated.outline,state.updated);
+    await releasePdfJsDocuments();
+    exportLive.stage('Reading source PDF bytes');setPhaseProgress('sources',45,'Reading PDF bytes');
+    const [originalBytes,updatedBytes]=await Promise.all([state.original.file.arrayBuffer(),state.updated.file.arrayBuffer()]);
+    const plan=state.plan.map(item=>({label:item.label,original:item.original?{index:item.original.index}:null,updated:item.updated?{index:item.updated.index}:null}));
+    const workerSource=$('#overlay-worker-source')?.textContent;if(!workerSource)throw new Error('Overlay worker source is missing.');
+    workerUrl=URL.createObjectURL(new Blob([workerSource],{type:'text/javascript'}));
+    worker=new Worker(workerUrl);
+    const result=await new Promise((resolve,reject)=>{
+      worker.onmessage=({data})=>{
+        if(data.type==='error'){reject(new Error(data.message));return}
+        if(data.type==='complete'){resolve(data);return}
+        if(data.type!=='progress')return;
+        const currentSheet=data.done>0&&data.done<=plan.length?plan[data.done-1]:null;
+        const sheetNumber=currentSheet?String(currentSheet.label).trim().split(/\s+/)[0]:'';
+        const isOriginal=data.percent>=10&&data.percent<43;
+        const isAssembly=data.percent>=48&&data.percent<83;
+        const shortStage=isOriginal?'Extracting original vectors':isAssembly?'Assembling overlay pages':data.stage;
+        exportLive.stage(shortStage);setExportProgress(data.percent,shortStage);
+        $('#master-sheet').textContent=currentSheet&&(isOriginal||isAssembly)?`Current sheet: ${currentSheet.label}`:`Current operation: ${shortStage}`;
+        if(data.percent<10){
+          setPhaseProgress('sources',data.percent>=5?45:25,data.percent>=5?'Parsing original PDF':'Reading source bytes');
+        }else if(data.percent<43){
+          setPhaseProgress('sources',65,'Original PDF loaded');
+          setPhaseProgress('masks',Math.round((data.percent-10)/30*50),sheetNumber?`Mask ${sheetNumber}`:'Preparing original vectors');
+        }else if(data.percent<48){
+          setPhaseProgress('sources',data.percent>=48?100:85,data.percent>=48?'Both PDFs loaded':'Parsing updated PDF');
+          setPhaseProgress('masks',50,'Original vectors ready');
+        }else if(data.percent<83){
+          setPhaseProgress('sources',100,'Both PDFs loaded');
+          setPhaseProgress('masks',Math.min(100,50+Math.round((data.percent-48)/32*50)),sheetNumber?`Mask ${sheetNumber}`:'Building updated masks');
+          setPhaseProgress('pages',Math.min(100,Math.round((data.percent-48)/32*100)),sheetNumber?`Page ${sheetNumber}`:'Assembling pages');
+        }else{
+          setPhaseProgress('sources',100,'Both PDFs loaded');setPhaseProgress('masks',100,'Masks ready');
+          setPhaseProgress('pages',100,'Pages assembled');
+          setPhaseProgress('write',Math.min(100,Math.round((data.percent-83)/17*100)),data.percent>=100?'Download ready':'Writing PDF');
+        }
+        if(data.total)setSubProgress(data.done,data.total,`${isOriginal?'Original vectors':isAssembly?'Overlay pages':'Processing'}: ${data.done} / ${data.total}`,isOriginal?'Extracting original vectors':isAssembly?'Assembling overlays':'Processing sheets');
+      };
+      worker.onerror=event=>reject(new Error(event.message||'Overlay worker failed'));
+      worker.onmessageerror=()=>reject(new Error('Could not receive the completed PDF from the worker'));
+      worker.postMessage({originalBytes,updatedBytes,plan,outline,alignment:alignmentResults,title:state.updated.file.name.replace(/\.pdf$/i,'')},[originalBytes,updatedBytes]);
+    });
+    setPhaseProgress('write',100,'Download ready');setExportProgress(100,`Created ${result.pageCount} vector overlay pages.${state.checkAlignment?` Alignment: ${aligned} applied, ${skipped} skipped.`:''}`);
+    download(outputName('overlay'),result.bytes);$('#export-title').textContent='Vector overlay created';button.textContent='Generate Again';toast('Vector overlay PDF downloaded.');
   }catch(error){console.error(error);$('#export-title').textContent='Could not create overlay';$('#export-status').textContent=`Could not create the vector overlay PDF: ${String(error.message||'unknown error').slice(0,180)}`;toast('Vector overlay creation failed. See the message above.')}
-  finally{button.disabled=false;if(button.textContent==='Building vector overlay…')button.textContent='Generate vector overlay'}
+  finally{worker?.terminate();if(workerUrl)URL.revokeObjectURL(workerUrl);$('#export-progress').classList.remove('working');exportLive.stop();$('#export-live')?.classList.add('hidden');button.disabled=false;if(button.textContent==='Building vector overlay…')button.textContent='Generate vector overlay'}
 }
-
 async function generate(){return state.mode==='overlay'?generateOverlay():generatePaired()}
 
 document.addEventListener('DOMContentLoaded',()=>{
@@ -295,6 +399,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.querySelectorAll('.upload-card').forEach(card=>{const kind=card.dataset.kind,input=card.querySelector('.file-input'),dropzone=card.querySelector('.dropzone');dropzone.addEventListener('click',()=>input.click());input.addEventListener('change',()=>upload(input.files?.[0],kind));for(const eventName of ['dragenter','dragover'])card.addEventListener(eventName,event=>{event.preventDefault();card.classList.add('drag')});for(const eventName of ['dragleave','drop'])card.addEventListener(eventName,event=>{event.preventDefault();card.classList.remove('drag')});card.addEventListener('drop',event=>upload(event.dataTransfer?.files?.[0],kind))});
   document.querySelectorAll('.mode').forEach(button=>button.addEventListener('click',()=>setMode(button.dataset.mode)));
   setMode('overlay');
+  $('#check-alignment').addEventListener('click',event=>{state.checkAlignment=!state.checkAlignment;const button=event.currentTarget;button.classList.toggle('active',state.checkAlignment);button.setAttribute('aria-pressed',String(state.checkAlignment));button.setAttribute('aria-label',`Check Alignment: ${state.checkAlignment?'On':'Off'}`);});
   $('#generate').addEventListener('click',generate);
   $('#keep-original').addEventListener('change',event=>{state.keepNonMatchingOriginal=event.target.checked;if(state.original&&state.updated)buildPlan();});
   $('#keep-updated').addEventListener('change',event=>{state.keepNonMatchingUpdated=event.target.checked;if(state.original&&state.updated)buildPlan();});
